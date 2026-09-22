@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ровно — ремонт квартир под ключ</title>
+  <meta name="description" content="Демо автоматизации заявок: форма → Google Таблица → Telegram → письмо клиенту.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="demo-bar" id="demo-bar">
+    <div class="wrap demo-bar__inner">
+      <span><b>Демо автоматизации.</b> Заявка из формы за пару секунд окажется в Google Таблице, у менеджера в Telegram и у вас на почте.</span>
+      <a class="demo-bar__link" id="sheet-link" href="#" target="_blank" rel="noopener" hidden>Открыть таблицу заявок →</a>
+    </div>
+  </div>
+
+  <header class="wrap header">
+    <a class="logo" href="#" aria-label="Ровно">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="3" y="3" width="22" height="22" rx="6" fill="currentColor"/><path d="M8 17h12M8 12h12" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+      Ровно
+    </a>
+    <nav class="nav">
+      <a href="#how">Как работаем</a>
+      <a href="#prices">Цены</a>
+      <a class="btn btn--small" href="#form">Рассчитать ремонт</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="wrap hero">
+      <div class="hero__text">
+        <p class="eyebrow">Москва и область · с 2014 года</p>
+        <h1>Ремонт квартиры под ключ с фиксированной сметой</h1>
+        <p class="lead">Смета не растёт после старта, сроки прописаны в договоре, каждый этап принимаете по фотоотчёту в Telegram.</p>
+        <ul class="facts">
+          <li><b>от 9 800 ₽</b><span>за м² под ключ</span></li>
+          <li><b>60 дней</b><span>средний срок на однушку</span></li>
+          <li><b>3 года</b><span>гарантия на работы</span></li>
+        </ul>
+      </div>
+
+      <form class="card form" id="form" novalidate>
+        <h2>Бесплатный замер и смета</h2>
+        <p class="muted">Перезвоним за 15 минут в рабочее время</p>
+
+        <label class="field">
+          <span>Имя</span>
+          <input name="name" autocomplete="name" maxlength="80" required placeholder="Как к вам обращаться">
+          <small class="error" data-for="name"></small>
+        </label>
+
+        <label class="field">
+          <span>Телефон</span>
+          <input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 (900) 000-00-00">
+          <small class="error" data-for="phone"></small>
+        </label>
+
+        <label class="field">
+          <span>Email <em>— пришлём подтверждение</em></span>
+          <input name="email" type="email" autocomplete="email" maxlength="120" placeholder="you@example.com">
+          <small class="error" data-for="email"></small>
+        </label>
+
+        <label class="field">
+          <span>Что нужно</span>
+          <select name="service">
+            <option>Ремонт под ключ</option>
+            <option>Косметический ремонт</option>
+            <option>Дизайн-проект</option>
+            <option>Ремонт санузла</option>
+            <option>Пока не знаю, нужна консультация</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Комментарий</span>
+          <textarea name="comment" rows="2" maxlength="1000" placeholder="Площадь, новостройка или вторичка, сроки"></textarea>
+        </label>
+
+        <!-- Ловушка для ботов: человек это поле не видит -->
+        <label class="hp" aria-hidden="true">Сайт <input name="website" tabindex="-1" autocomplete="off"></label>
+
+        <label class="check">
+          <input type="checkbox" name="consent" required>
+          <span>Согласен на обработку персональных данных</span>
+        </label>
+        <small class="error" data-for="consent"></small>
+
+        <button class="btn btn--wide" type="submit">
+          <span class="btn__label">Получить смету</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+        <p class="error error--form" data-for="form" role="alert"></p>
+      </form>
+
+      <div class="card success" id="success" hidden>
+        <div class="success__icon" aria-hidden="true">✓</div>
+        <h2>Заявка <span id="lead-id"></span> принята</h2>
+        <p>Менеджер уже получил её в Telegram и перезвонит в течение 15 минут.</p>
+        <p class="muted" id="success-email" hidden>Подтверждение отправили на почту — проверьте «Входящие» и «Спам».</p>
+        <button class="btn btn--ghost" type="button" id="again">Отправить ещё одну</button>
+      </div>
+    </section>
+
+    <section class="wrap steps" id="how">
+      <h2>Как работаем</h2>
+      <ol class="steps__list">
+        <li><b>Замер</b><span>Инженер приезжает бесплатно, делает обмеры и фото.</span></li>
+        <li><b>Смета за 2 дня</b><span>Постатейно: материалы, работы, сроки. Цена фиксируется в договоре.</span></li>
+        <li><b>Ремонт</b><span>Фотоотчёт каждый вечер в Telegram, приёмка по этапам.</span></li>
+        <li><b>Сдача</b><span>Уборка, акт, гарантия 3 года.</span></li>
+      </ol>
+    </section>
+
+    <section class="wrap prices" id="prices">
+      <h2>Цены</h2>
+      <div class="prices__grid">
+        <div class="card price"><span>Косметический</span><b>от 4 500 ₽/м²</b><p>Покраска, обои, ламинат, без переноса коммуникаций.</p></div>
+        <div class="card price price--accent"><span>Под ключ</span><b>от 9 800 ₽/м²</b><p>Черновые и чистовые работы, электрика, сантехника.</p></div>
+        <div class="card price"><span>Дизайн-проект</span><b>от 1 900 ₽/м²</b><p>Планировка, визуализации, ведомость материалов.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <span>© Ровно. Демо-сайт: компания вымышленная, заявки уходят в тестовую таблицу.</span>
+    <span>n8n · Google Sheets · Telegram Bot API · SMTP</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

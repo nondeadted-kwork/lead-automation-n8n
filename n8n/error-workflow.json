@@ -1,0 +1,55 @@
+{
+  "name": "Алерт: сбой в связке заявок",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a76e8cc3-14b4-50cf-b88c-7bf7dcbe920f",
+      "name": "Ошибка в workflow",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "ВСТАВЬТЕ_CHAT_ID",
+        "text": "={{ '🔥 Сбой связки «' + $json.workflow.name + '»\\nНода: ' + ($json.execution.lastNodeExecuted ?? '—') + '\\nОшибка: ' + String($json.execution.error?.message ?? 'нет текста').replace(/[<>&]/g, '') + '\\n' + ($json.execution.url ?? '') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "551c0ad7-50b4-529a-9430-00a20ec31d10",
+      "name": "Алерт в Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Ошибка в workflow": {
+      "main": [
+        [
+          {
+            "node": "Алерт в Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}

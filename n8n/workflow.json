@@ -1,0 +1,615 @@
+{
+  "name": "Заявки с сайта → Google Sheets → Telegram + email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "f017da12-9d7a-5885-8bb8-eea8e90356d3",
+      "name": "Заявка с сайта",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        320
+      ],
+      "webhookId": "a22330ea-70fc-5b66-9768-e9d21f9cb464"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b44b0743-2373-506e-bc6a-2fe68a607c05",
+              "name": "spreadsheetId",
+              "value": "ВСТАВЬТЕ_ID_ТАБЛИЦЫ",
+              "type": "string"
+            },
+            {
+              "id": "6e8aa1d9-7865-5f07-9ae0-736aa852458c",
+              "name": "sheetName",
+              "value": "Заявки",
+              "type": "string"
+            },
+            {
+              "id": "ca0b34ae-56e9-5e9a-88bd-f30af6a5796f",
+              "name": "telegramChatId",
+              "value": "ВСТАВЬТЕ_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "80e97749-7dcd-5aec-836f-f7f64fd0fea3",
+              "name": "fromEmail",
+              "value": "Ровно <hello@example.com>",
+              "type": "string"
+            },
+            {
+              "id": "60c3c240-c2ea-5402-b87b-dc45bb09c9d1",
+              "name": "businessName",
+              "value": "Ремонт квартир «Ровно»",
+              "type": "string"
+            },
+            {
+              "id": "2b980986-53e6-5c0e-9b2d-70f6a071aef1",
+              "name": "timezone",
+              "value": "Europe/Moscow",
+              "type": "string"
+            },
+            {
+              "id": "89925e57-bb77-531e-873a-9c0392db4956",
+              "name": "demoMode",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5c4999fe-cfa6-516b-b33e-eaf7deb22a22",
+      "name": "Настройки",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Код ноды «Проверка заявки» (n8n → Code, JavaScript, Run Once for All Items).\n// Лежит отдельным файлом, чтобы его было удобно читать и ревьюить. В workflow.json вставлен тот же текст.\n\nconst cfg = $('Настройки').first().json;\nconst req = $('Заявка с сайта').first().json;\nconst body = req.body ?? {};\nconst headers = req.headers ?? {};\n\n// Принимаем только строки и числа: массив или объект в поле «имя» — это мусор, а не имя.\nconst clean = (v, max) =>\n  typeof v === 'string' || typeof v === 'number' ? String(v).replace(/\\s+/g, ' ').trim().slice(0, max) : '';\nconst esc = (s) => String(s).replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' })[c]);\n\nconst name = clean(body.name, 80);\nconst email = clean(body.email, 120).toLowerCase();\nconst service = clean(body.service, 80) || 'Не указана';\nconst comment = clean(body.comment, 1000);\nconst source = clean(body.source || headers.referer || 'сайт', 200);\n\n// Телефон: оставляем цифры, «8 999…» и «999…» приводим к «+7 999…»\nlet digits = clean(body.phone, 40).replace(/\\D/g, '');\nif (digits.length === 11 && digits.startsWith('8')) digits = '7' + digits.slice(1);\nif (digits.length === 10) digits = '7' + digits;\nconst phone = digits.length >= 11 && digits.length <= 15 ? '+' + digits : '';\n\nconst errors = {};\nif (name.length < 2) errors.name = 'Укажите имя';\nif (!phone) errors.phone = 'Проверьте номер телефона';\nif (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email)) errors.email = 'Проверьте email';\nif (![true, 'true', 'on'].includes(body.consent)) errors.consent = 'Нужно согласие на обработку данных';\n\n// Антиспам 1: скрытое поле website. Человек его не видит, бот заполняет.\nconst isBot = clean(body.website, 100) !== '';\n\n// Антиспам 2: не больше 5 заявок с одного IP за 10 минут. Счётчик живёт в static data workflow.\n// Это защита «от дурака», а не от DDoS: параллельные запуски могут перезаписать счётчик друг друга.\nconst store = $getWorkflowStaticData('global');\nconst now = Date.now();\n// Последний адрес в X-Forwarded-For дописал наш прокси (Caddy); первые клиент может подделать.\nconst ip = clean(String(headers['x-forwarded-for'] ?? '').split(',').pop(), 64) || 'unknown';\nstore.hits = (store.hits ?? []).filter((h) => now - h.t < 10 * 60 * 1000);\nconst tooMany = store.hits.filter((h) => h.ip === ip).length >= 5;\nstore.hits.push({ ip, t: now });\n\nconst valid = Object.keys(errors).length === 0 && !isBot && !tooMany;\n\n// Автоответ на один адрес — не чаще раза в час, чтобы форму не использовали для рассылки спама.\nstore.mailed = Object.fromEntries(Object.entries(store.mailed ?? {}).filter(([, t]) => now - t < 3600 * 1000));\nconst sendEmail = valid && email !== '' && !store.mailed[email];\nif (sendEmail) store.mailed[email] = now;\n\nconst created = DateTime.now().setZone(cfg.timezone || 'Europe/Moscow');\nconst id = 'L' + created.toFormat('yyMMdd') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();\n\n// В демо-режиме таблица публичная, поэтому телефон и почту в ней маскируем. В Telegram — полные данные.\nconst maskPhone = (p) => p.replace(/^(\\+\\d)(\\d{3})\\d{3}\\d{2}(\\d{2})$/, '$1 $2 ***-**-$3');\nconst maskEmail = (e) => e.replace(/^(.{2})[^@]*(@.*)$/, '$1***$2');\n\nconst lines = [\n  `🆕 <b>Заявка ${id}</b>`,\n  `👤 ${esc(name)}`,\n  `📞 ${phone}`,\n  `✉️ ${email ? esc(email) : '—'}`,\n  `🛠 ${esc(service)}`,\n  comment ? `💬 ${esc(comment)}` : null,\n  `🔗 ${esc(source)}`,\n].filter(Boolean);\n\nconst emailHtml = `\n<div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1d1f;max-width:520px\">\n  <p>Здравствуйте, ${esc(name)}!</p>\n  <p>Мы получили вашу заявку <b>${id}</b> на «${esc(service)}».\n     Менеджер перезвонит на номер ${phone} в течение 15 минут в рабочее время (пн–сб, 9:00–20:00).</p>\n  <p>Если удобнее переписка — просто ответьте на это письмо.</p>\n  <p style=\"color:#6e6e73\">${esc(cfg.businessName)}</p>\n</div>`;\n\nreturn [{\n  json: {\n    valid,\n    isBot,\n    tooMany,\n    errors,\n    sendEmail,\n    lead: { id, name, phone, email, service, comment, source, created: created.toFormat('dd.MM.yyyy HH:mm') },\n    row: {\n      'ID': id,\n      'Дата': created.toFormat('dd.MM.yyyy HH:mm'),\n      'Имя': name,\n      'Телефон': cfg.demoMode ? maskPhone(phone) : phone,\n      'Email': cfg.demoMode ? maskEmail(email) : email,\n      'Услуга': service,\n      'Комментарий': comment,\n      'Источник': source,\n      'Статус': 'Новая',\n    },\n    telegramText: lines.join('\\n'),\n    emailSubject: `Заявка ${id} получена — ${cfg.businessName}`,\n    emailHtml,\n  },\n}];\n"
+      },
+      "id": "2b4b2ad0-7dd7-562b-95cd-d59e489e70c4",
+      "name": "Проверка заявки",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f4fb7642-a1be-5b1e-ba4c-9b6779e5e703",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "51acf80f-0b6c-540a-9279-26c877183b51",
+      "name": "Заявка валидна?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        720,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Настройки').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Настройки').first().json.sheetName }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $json.row['ID'] }}",
+            "Дата": "={{ $json.row['Дата'] }}",
+            "Имя": "={{ $json.row['Имя'] }}",
+            "Телефон": "={{ $json.row['Телефон'] }}",
+            "Email": "={{ $json.row['Email'] }}",
+            "Услуга": "={{ $json.row['Услуга'] }}",
+            "Комментарий": "={{ $json.row['Комментарий'] }}",
+            "Источник": "={{ $json.row['Источник'] }}",
+            "Статус": "={{ $json.row['Статус'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Дата",
+              "displayName": "Дата",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Имя",
+              "displayName": "Имя",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Телефон",
+              "displayName": "Телефон",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Услуга",
+              "displayName": "Услуга",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Комментарий",
+              "displayName": "Комментарий",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Источник",
+              "displayName": "Источник",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Статус",
+              "displayName": "Статус",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "3cb28846-402e-553c-ac27-827352d04f5e",
+      "name": "Запись в таблицу",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.isBot ? { ok: true } : { ok: false, errors: $json.tooMany ? { form: 'Слишком много заявок подряд. Попробуйте через 10 минут.' } : $json.errors }) }}",
+        "options": {
+          "responseCode": "={{ $json.isBot ? 200 : ($json.tooMany ? 429 : 422) }}"
+        }
+      },
+      "id": "90e2479d-75d5-5a96-983b-4fd396dafd03",
+      "name": "Ответ сайту: ошибка",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        960,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, id: $('Проверка заявки').first().json.lead.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "9f7b58a6-0177-5ad5-9a87-fa39b534a292",
+      "name": "Ответ сайту: принято",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1200,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Настройки').first().json.telegramChatId }}",
+        "text": "={{ ($json.error ? '⚠️ <b>Не записалась в таблицу</b> — перенесите вручную\\n\\n' : '') + $('Проверка заявки').first().json.telegramText }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📊 Открыть таблицу",
+                    "additionalFields": {
+                      "url": "=https://docs.google.com/spreadsheets/d/{{ $('Настройки').first().json.spreadsheetId }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "92bf2fda-09af-5543-a11b-e5958d47b0d0",
+      "name": "Уведомление в Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        80
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a2d4ef21-4651-5611-a7ea-60a995a9dee1",
+              "leftValue": "={{ $('Проверка заявки').first().json.sendEmail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8a70d558-a0ea-504d-93ea-bb951171d912",
+      "name": "Нужен автоответ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('Настройки').first().json.fromEmail }}",
+        "toEmail": "={{ $('Проверка заявки').first().json.lead.email }}",
+        "subject": "={{ $('Проверка заявки').first().json.emailSubject }}",
+        "emailFormat": "html",
+        "html": "={{ $('Проверка заявки').first().json.emailHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "d3751143-93f9-56f6-b1f3-097fde934046",
+      "name": "Автоответ клиенту",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        280
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a9068401-8ddd-5793-9ed9-21b125b15c94",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "544e9628-57f0-5f7f-9d5b-434033a37081",
+      "name": "Письмо не ушло?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1920,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Настройки').first().json.telegramChatId }}",
+        "text": "={{ '⚠️ Автоответ по заявке ' + $('Проверка заявки').first().json.lead.id + ' не ушёл на ' + $('Проверка заявки').first().json.lead.email + '\\n' + String($json.error?.message ?? $json.error ?? 'неизвестная ошибка').replace(/[<>&]/g, '') + '\\n\\nПроверьте SMTP-доступ в n8n.' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0f2754a9-084e-5d2e-9f6b-46bded6688f9",
+      "name": "Алерт: письмо не ушло",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. Приём и проверка\nФорма с сайта шлёт JSON на `/webhook/lead`.\n\n**Настройки** — все параметры в одном месте: ID таблицы, чат менеджера, адрес отправителя.\n\n**Проверка заявки** — нормализует телефон к +7, валидирует поля, отсекает ботов (скрытое поле) и флуд (5 заявок / 10 мин с IP).",
+        "height": 560,
+        "width": 700,
+        "color": 7
+      },
+      "id": "0711871b-d26e-5696-a31b-535a39a424cc",
+      "name": "note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. Запись и ответ сайту\nЗаявка пишется в Google Таблицу.\n\nЕсли Google недоступен — заявка **не теряется**: уходит в Telegram с пометкой ⚠️, сайт всё равно получает «принято».\n\nНекорректные данные → 422 с ошибками по полям, флуд → 429, боты → фальшивый 200.",
+        "height": 700,
+        "width": 700,
+        "color": 5
+      },
+      "id": "c1ce255f-fdad-555e-a56d-667bc0b84bb8",
+      "name": "note-2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. Уведомления\nМенеджер получает заявку в Telegram с кнопкой на таблицу.\n\nКлиент получает письмо-автоответ (не чаще раза в час на один адрес).\n\nНе ушло письмо — отдельный алерт менеджеру. Любой другой сбой ловит **error-workflow**.",
+        "height": 700,
+        "width": 1000,
+        "color": 4
+      },
+      "id": "e1ede594-232f-55b4-9c45-49e45b7ba3a8",
+      "name": "note-3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        -60
+      ]
+    }
+  ],
+  "connections": {
+    "Заявка с сайта": {
+      "main": [
+        [
+          {
+            "node": "Настройки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Настройки": {
+      "main": [
+        [
+          {
+            "node": "Проверка заявки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверка заявки": {
+      "main": [
+        [
+          {
+            "node": "Заявка валидна?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Заявка валидна?": {
+      "main": [
+        [
+          {
+            "node": "Запись в таблицу",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ответ сайту: ошибка",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Запись в таблицу": {
+      "main": [
+        [
+          {
+            "node": "Ответ сайту: принято",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ответ сайту: принято": {
+      "main": [
+        [
+          {
+            "node": "Уведомление в Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Нужен автоответ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нужен автоответ?": {
+      "main": [
+        [
+          {
+            "node": "Автоответ клиенту",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Автоответ клиенту": {
+      "main": [
+        [
+          {
+            "node": "Письмо не ушло?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Письмо не ушло?": {
+      "main": [
+        [
+          {
+            "node": "Алерт: письмо не ушло",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "Europe/Moscow"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

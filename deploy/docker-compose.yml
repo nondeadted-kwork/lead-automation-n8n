@@ -1,0 +1,35 @@
+# n8n + Caddy (автоматический HTTPS от Let's Encrypt).
+# Запуск: cp .env.example .env && nano .env && docker compose up -d
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.40.5   # версия, на которой проверен workflow
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${N8N_DOMAIN}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://${N8N_DOMAIN}/
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}   # потеряете ключ — потеряете все сохранённые доступы
+      N8N_PROXY_HOPS: 1                           # доверяем X-Forwarded-For от Caddy (антифлуд по IP)
+      GENERIC_TIMEZONE: Europe/Moscow
+      TZ: Europe/Moscow
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      EXECUTIONS_DATA_PRUNE: "true"               # не копим историю запусков бесконечно
+      EXECUTIONS_DATA_MAX_AGE: 336                # 14 дней
+    volumes:
+      - n8n_data:/home/node/.n8n
+    logging:
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      N8N_DOMAIN: ${N8N_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  n8n_data:
+  caddy_data:
