@@ -15,7 +15,7 @@
     {
       "parameters": {
         "chatId": "ВСТАВЬТЕ_CHAT_ID",
-        "text": "={{ '🔥 Сбой связки «' + $json.workflow.name + '»\\nНода: ' + ($json.execution.lastNodeExecuted ?? '—') + '\\nОшибка: ' + String($json.execution.error?.message ?? 'нет текста').replace(/[<>&]/g, '') + '\\n' + ($json.execution.url ?? '') }}",
+        "text": "={{ '🔥 Сбой связки «' + $json.workflow.name + '»\\nНода: ' + ($json.execution.lastNodeExecuted ?? 'неизвестно') + '\\nОшибка: ' + String($json.execution.error?.message ?? 'нет текста').replace(/[<>&]/g, '') + '\\n' + ($json.execution.url ?? '') }}",
         "additionalFields": {
           "appendAttribution": false,
           "disable_web_page_preview": true

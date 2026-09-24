@@ -94,7 +94,7 @@
       showErrors({
         form: err.name === 'AbortError'
           ? `Сервер долго не отвечает. Попробуйте ещё раз или позвоните: ${cfg.fallbackPhone}`
-          : `Не получилось отправить — проверьте интернет или позвоните: ${cfg.fallbackPhone}`,
+          : `Не получилось отправить. Проверьте интернет или позвоните: ${cfg.fallbackPhone}`,
       });
     } finally {
       clearTimeout(timer);

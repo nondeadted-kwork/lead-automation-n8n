@@ -6,7 +6,7 @@ const req = $('Заявка с сайта').first().json;
 const body = req.body ?? {};
 const headers = req.headers ?? {};
 
-// Принимаем только строки и числа: массив или объект в поле «имя» — это мусор, а не имя.
+// Принимаем только строки и числа: массив или объект в поле «имя» это мусор, а не имя.
 const clean = (v, max) =>
   typeof v === 'string' || typeof v === 'number' ? String(v).replace(/\s+/g, ' ').trim().slice(0, max) : '';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -44,7 +44,7 @@ store.hits.push({ ip, t: now });
 
 const valid = Object.keys(errors).length === 0 && !isBot && !tooMany;
 
-// Автоответ на один адрес — не чаще раза в час, чтобы форму не использовали для рассылки спама.
+// Автоответ на один адрес не чаще раза в час, чтобы форму не использовали для рассылки спама.
 store.mailed = Object.fromEntries(Object.entries(store.mailed ?? {}).filter(([, t]) => now - t < 3600 * 1000));
 const sendEmail = valid && email !== '' && !store.mailed[email];
 if (sendEmail) store.mailed[email] = now;
@@ -52,7 +52,7 @@ if (sendEmail) store.mailed[email] = now;
 const created = DateTime.now().setZone(cfg.timezone || 'Europe/Moscow');
 const id = 'L' + created.toFormat('yyMMdd') + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
 
-// В демо-режиме таблица публичная, поэтому телефон и почту в ней маскируем. В Telegram — полные данные.
+// В демо-режиме таблица публичная, поэтому телефон и почту в ней маскируем. В Telegram уходят полные данные.
 const maskPhone = (p) => p.replace(/^(\+\d)(\d{3})\d{3}\d{2}(\d{2})$/, '$1 $2 ***-**-$3');
 const maskEmail = (e) => e.replace(/^(.{2})[^@]*(@.*)$/, '$1***$2');
 
@@ -60,7 +60,7 @@ const lines = [
   `🆕 <b>Заявка ${id}</b>`,
   `👤 ${esc(name)}`,
   `📞 ${phone}`,
-  `✉️ ${email ? esc(email) : '—'}`,
+  `✉️ ${email ? esc(email) : 'не указан'}`,
   `🛠 ${esc(service)}`,
   comment ? `💬 ${esc(comment)}` : null,
   `🔗 ${esc(source)}`,
@@ -70,8 +70,8 @@ const emailHtml = `
 <div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1d1d1f;max-width:520px">
   <p>Здравствуйте, ${esc(name)}!</p>
   <p>Мы получили вашу заявку <b>${id}</b> на «${esc(service)}».
-     Менеджер перезвонит на номер ${phone} в течение 15 минут в рабочее время (пн–сб, 9:00–20:00).</p>
-  <p>Если удобнее переписка — просто ответьте на это письмо.</p>
+     Менеджер перезвонит на номер ${phone} в течение 15 минут в рабочее время (пн-сб, 9:00-20:00).</p>
+  <p>Если удобнее переписка, просто ответьте на это письмо.</p>
   <p style="color:#6e6e73">${esc(cfg.businessName)}</p>
 </div>`;
 
@@ -95,7 +95,7 @@ return [{
       'Статус': 'Новая',
     },
     telegramText: lines.join('\n'),
-    emailSubject: `Заявка ${id} получена — ${cfg.businessName}`,
+    emailSubject: `${cfg.businessName}: заявка ${id} получена`,
     emailHtml,
   },
 }];

@@ -8,7 +8,7 @@ services:
       N8N_HOST: ${N8N_DOMAIN}
       N8N_PROTOCOL: https
       WEBHOOK_URL: https://${N8N_DOMAIN}/
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}   # потеряете ключ — потеряете все сохранённые доступы
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}   # потеряете ключ, потеряете все сохранённые доступы
       N8N_PROXY_HOPS: 1                           # доверяем X-Forwarded-For от Caddy (антифлуд по IP)
       GENERIC_TIMEZONE: Europe/Moscow
       TZ: Europe/Moscow
