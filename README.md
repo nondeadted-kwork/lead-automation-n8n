@@ -2,13 +2,11 @@
 
 **RU** · [EN below](#english)
 
-> Живое демо: [сайт с формой](https://otves-remont.vercel.app) · [таблица заявок (только просмотр)](https://docs.google.com/spreadsheets/d/1bT-UKz4PPYD5rfl6dEeHaZmWrBt4tVGJiNqKQlLW1kk/edit?usp=sharing) · видео 40 сек: [ссылка]
+> Живое демо: [сайт с формой](https://otves-remont.vercel.app) · [таблица заявок (только просмотр)](https://docs.google.com/spreadsheets/d/1bT-UKz4PPYD5rfl6dEeHaZmWrBt4tVGJiNqKQlLW1kk/edit?usp=sharing)
 
 | Форма на сайте | Через секунду: заявка принята |
 |---|---|
 | ![Форма](docs/site.png) | ![Заявка принята](docs/site-success.png) |
-
-![Workflow в n8n](docs/workflow.png)
 
 Что в этот момент прилетает менеджеру в Telegram (текст из тестового прогона):
 ```
